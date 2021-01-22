@@ -3,8 +3,6 @@ from bs4 import BeautifulSoup
 import pandas as pd
 
 CVK_BASE_URL = "https://www.cvk.gov.ua/pls/vm2020/"
-# CANDIDATES_REGIONS_PATH = "pvm008pt001f01=695pt00_t001f01=695.html"
-# ELECTED_REGIONS_PATH = "pvm002pt001f01=695pt00_t001f01=695.html"
 REGIONS_PATH = {
     "candidates": "pvm008pt001f01=695pt00_t001f01=695.html",
     "elected": "pvm002pt001f01=695pt00_t001f01=695.html",
@@ -239,31 +237,3 @@ def get_candidates_info(category="candidates", regions=None, types_of_councils=N
     # convert columns to numeric type where possible
     candidates_full = candidates_full.apply(pd.to_numeric, errors="ignore")
     return candidates_full
-
-
-candidates_data = get_candidates_info(
-    category="candidates",
-    regions=["Вінницька область", "Волинська область", "Дніпропетровська область"],
-    types_of_councils=["Міські"],
-)
-elected_data = get_candidates_info(
-    category="elected",
-    regions=["Вінницька область", "Волинська область", "Дніпропетровська область"],
-    types_of_councils=["Міські"],
-)
-merged_data = pd.merge(
-    candidates_data,
-    elected_data,
-    how="outer",
-    on=["Рада", "Партія", "Прізвище, ім’я, по батькові"],
-)
-
-writer = pd.ExcelWriter("Міські_депутати.xlsx", engine="xlsxwriter")
-
-# Write each dataframe to a different worksheet.
-candidates_data.to_excel(writer, sheet_name="сandidates")
-elected_data.to_excel(writer, sheet_name="elected")
-merged_data.to_excel(writer, sheet_name="merged")
-
-# Close the Pandas Excel writer and output the Excel file.
-writer.save()
