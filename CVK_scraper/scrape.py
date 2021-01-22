@@ -3,10 +3,15 @@ from bs4 import BeautifulSoup
 import pandas as pd
 
 CVK_BASE_URL = "https://www.cvk.gov.ua/pls/vm2020/"
-CANDIDATES_REGIONS_PATH = "pvm008pt001f01=695pt00_t001f01=695.html"
+# CANDIDATES_REGIONS_PATH = "pvm008pt001f01=695pt00_t001f01=695.html"
+# ELECTED_REGIONS_PATH = "pvm002pt001f01=695pt00_t001f01=695.html"
+REGIONS_PATH = {
+    "candidates": "pvm008pt001f01=695pt00_t001f01=695.html",
+    "elected": "pvm002pt001f01=695pt00_t001f01=695.html",
+}
 
 
-def get_regional_council_paths(URL, category):
+def _get_regional_council_paths(URL, category):
     """Get link paths for each type of council for each region.
 
     Args:
@@ -71,7 +76,7 @@ def get_regional_council_paths(URL, category):
     return regional_council_paths
 
 
-def get_council_paths(URL, category):
+def _get_council_paths(URL, category):
     """Get link paths for each council
 
     Args:
@@ -114,7 +119,7 @@ def get_council_paths(URL, category):
     return council_paths
 
 
-def get_council_people_data(URL):
+def _get_council_people_data(URL):
     """Get personal data about candidates or elected people for a council
 
     Args:
@@ -160,17 +165,105 @@ def get_council_people_data(URL):
     return people_data
 
 
-regional_council_paths = get_regional_council_paths(
-    CVK_BASE_URL + CANDIDATES_REGIONS_PATH, "candidates"
+def get_candidates_info(category="candidates", regions=None, types_of_councils=None):
+    """Get candidates info (for all candidates or elected) for specified regions and types of councils
+
+    Args:
+        category (str, optional): category of candidates. Possible options: "candidates", "elected". Defaults to "candidates".
+        regions (list, optional): list of regions. If provided None, all regions will be scraped. Defaults to None.
+        types_of_councils (list, optional): list of types of councils. If provided None, all types of councils will be scraped.
+        Defaults to None.
+
+    Raises:
+        ValueError: invalid category provided
+
+    Returns:
+        DataFrame: scraped DataFrame with candidates info
+    """
+    # check that the category is correct
+    if category != "candidates" and category != "elected":
+        raise ValueError("Некоректна категорія")
+    # get all link paths for provided category
+    regional_council_paths = _get_regional_council_paths(
+        CVK_BASE_URL + REGIONS_PATH[category], category
+    )
+    # get all available regions
+    all_regions = list(regional_council_paths.keys())
+    # if regions argument is empty, scrape all regions
+    if regions is None:
+        regions = all_regions
+    # if there are no types of councils, scrape all
+    # TO DO: add support for 'сільскі' та 'селищні'
+    if types_of_councils is None:
+        types_of_councils = list(regional_council_paths[all_regions[0]].keys())
+    # init final DataFrame
+    candidates_full = pd.DataFrame()
+    # scrape data for each region
+    for region in regions:
+        # init DataFrame for region
+        candidates_region = pd.DataFrame()
+        # scrape data for each provided council
+        for type_of_council in types_of_councils:
+            # get link path for corresponding region and type of council
+            regional_councils_path = regional_council_paths[region][type_of_council]
+            # if path exist, get all council paths
+            if regional_councils_path:
+                councils_paths = _get_council_paths(
+                    CVK_BASE_URL + regional_councils_path, category
+                )
+                # scrape candidates info for each council
+                for council, path in councils_paths.items():
+                    candidates = _get_council_people_data(CVK_BASE_URL + path)
+                    # rename some columns
+                    candidates.rename(
+                        columns={
+                            "№ ОВО": "ТВО/ОВО",
+                            "№ ТВО, за яким закріплено": "ТВО/ОВО",
+                            "Прізвище, ім'я, по батькові": "Прізвище, ім’я, по батькові",
+                            "Висування": "Партія",
+                        },
+                        inplace=True,
+                    )
+                    # add column "Рада" і "Тип ради"
+                    candidates.insert(0, "Рада", council)
+                    candidates.insert(1, "Тип ради", type_of_council)
+                    # candidates["Рада"] = council
+                    # candidates["Тип ради"] = type_of_council
+                    # append to regional DataFrame
+                    candidates_region = candidates_region.append(candidates)
+        # add region column
+        candidates_region.insert(0, "Регіон", region)
+        # candidates_region["Регіон"] = region
+        # append to full DataFrame
+        candidates_full = candidates_full.append(candidates_region)
+    # convert columns to numeric type where possible
+    candidates_full = candidates_full.apply(pd.to_numeric, errors="ignore")
+    return candidates_full
+
+
+candidates_data = get_candidates_info(
+    category="candidates",
+    regions=["Вінницька область", "Волинська область", "Дніпропетровська область"],
+    types_of_councils=["Міські"],
 )
-# print(regional_councils_paths)
-vinnytsya_city_councils_path = regional_council_paths["Вінницька область"]["Міські"]
-vinnytsya_city_council_paths = get_council_paths(
-    CVK_BASE_URL + vinnytsya_city_councils_path, "candidates"
+elected_data = get_candidates_info(
+    category="elected",
+    regions=["Вінницька область", "Волинська область", "Дніпропетровська область"],
+    types_of_councils=["Міські"],
 )
-# print(vinnytsya_city_council_paths)
-bar_council_candidates = get_council_people_data(
-    CVK_BASE_URL + vinnytsya_city_council_paths["Барська міська рада"]
+merged_data = pd.merge(
+    candidates_data,
+    elected_data,
+    how="outer",
+    on=["Рада", "Партія", "Прізвище, ім’я, по батькові"],
 )
-bar_council_candidates.to_excel("test.xlsx")
-print(bar_council_candidates)
+
+writer = pd.ExcelWriter("Міські_депутати.xlsx", engine="xlsxwriter")
+
+# Write each dataframe to a different worksheet.
+candidates_data.to_excel(writer, sheet_name="сandidates")
+elected_data.to_excel(writer, sheet_name="elected")
+merged_data.to_excel(writer, sheet_name="merged")
+
+# Close the Pandas Excel writer and output the Excel file.
+writer.save()
