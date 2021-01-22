@@ -114,6 +114,52 @@ def get_council_paths(URL, category):
     return council_paths
 
 
+def get_council_people_data(URL):
+    """Get personal data about candidates or elected people for a council
+
+    Args:
+        URL (str): link to a page with a table with candidates or elected people for council
+
+    Returns:
+        DataFrame: DataFrame with scraped data
+    """
+    # retrieve the source page
+    page = requests.get(URL)
+    # parse the page code
+    soup = BeautifulSoup(page.content, "lxml")
+    # get all tables
+    tables = soup.find_all("table", {"class": "t2"})
+    # edge case when a page is empty
+    if len(tables) == 0:
+        return pd.DataFrame()
+    # extract the table of interest
+    table = tables[-1]
+    # get rows
+    rows = table.find_all("tr")
+    # get headers
+    col_names = ["Партія"] + [td.get_text() for td in rows[0].find_all("td")]
+    # scrape data from the table
+    data = []
+    party = None
+    for row in rows[1:]:
+        cols = row.find_all("td")
+        # scrape party line
+        if len(cols) == 1:
+            party = cols[0].find("b").get_text()
+        else:
+            # scrape personal info
+            person_info = [party] + [
+                ele.get_text(separator=" ").strip() for ele in cols
+            ]
+            data.append(person_info)
+    # convert to DataFrame
+    people_data = pd.DataFrame(data, columns=col_names)
+    # if there are no separate lines with parties, they are contained in personal info
+    if party is None:
+        people_data.drop(columns="Партія", inplace=True)
+    return people_data
+
+
 regional_council_paths = get_regional_council_paths(
     CVK_BASE_URL + CANDIDATES_REGIONS_PATH, "candidates"
 )
@@ -122,10 +168,9 @@ vinnytsya_city_councils_path = regional_council_paths["Вінницька обл
 vinnytsya_city_council_paths = get_council_paths(
     CVK_BASE_URL + vinnytsya_city_councils_path, "candidates"
 )
-print(vinnytsya_city_council_paths)
-
-d = {
-    "Барська міська рада": "pvm056pid102=12644pf7691=64740pt001f01=695rej=0pt00_t001f01=695.html",
-    "Бершадська міська рада": "pvm056pid102=6499pf7691=63705pt001f01=695rej=0pt00_t001f01=695.html",
-    "Вінницька міська рада": "pvm056pid102=7199pf7691=65096pt001f01=695rej=0pt00_t001f01=695.html",
-}
+# print(vinnytsya_city_council_paths)
+bar_council_candidates = get_council_people_data(
+    CVK_BASE_URL + vinnytsya_city_council_paths["Барська міська рада"]
+)
+bar_council_candidates.to_excel("test.xlsx")
+print(bar_council_candidates)
