@@ -164,7 +164,7 @@ def _get_council_people_data(URL):
 
 
 def get_candidates_info(category="all", regions=None, types_of_councils=None):
-    """Get for all or elected candidates info for specified regions and types of councils
+    """Get info about all or elected candidates for specified regions and types of councils
 
     Args:
         category (str, optional): category of candidates. Possible options: "all", "elected". Defaults to "all".
@@ -219,6 +219,7 @@ def get_candidates_info(category="all", regions=None, types_of_councils=None):
                             "№ ТВО, за яким закріплено": "ТВО/ОВО",
                             "Прізвище, ім'я, по батькові": "Прізвище, ім’я, по батькові",
                             "Висування": "Партія",
+                            "% від квоти": "% голосів від квоти",
                         },
                         inplace=True,
                     )
@@ -231,6 +232,10 @@ def get_candidates_info(category="all", regions=None, types_of_councils=None):
         candidates_region.insert(0, "Регіон", region)
         # append to full DataFrame
         candidates_full = candidates_full.append(candidates_region)
+    # change comma delimeter to decimal point
+    candidates_full["% голосів від квоти"] = candidates_full[
+        "% голосів від квоти"
+    ].str.replace(",", ".")
     # convert columns to numeric type where possible
     candidates_full = candidates_full.apply(pd.to_numeric, errors="ignore")
     return candidates_full
