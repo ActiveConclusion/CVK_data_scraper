@@ -20,10 +20,14 @@ def run():
     merged_candidates_data = merge_candidates_info(
         all_candidates_data, elected_candidates_data
     )
+    # aggregate data
+    aggregated_data = aggregate_by_party_region_council(merged_candidates_data)
+
     # write DataFrames to CSV files
     all_candidates_data.to_csv(CANDIDATES_RAW_FILE_CSV_PATH, index=False)
     elected_candidates_data.to_csv(ELECTED_RAW_FILE_CSV_PATH, index=False)
     merged_candidates_data.to_csv(MERGED_FILE_CSV_PATH, index=False)
+    aggregated_data.to_csv(AGGREGATED_FILE_CSV_PATH, index=False)
 
 
 if __name__ == "__main__":
