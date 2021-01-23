@@ -4,7 +4,7 @@ import pandas as pd
 
 CVK_BASE_URL = "https://www.cvk.gov.ua/pls/vm2020/"
 REGIONS_PATH = {
-    "candidates": "pvm008pt001f01=695pt00_t001f01=695.html",
+    "all": "pvm008pt001f01=695pt00_t001f01=695.html",
     "elected": "pvm002pt001f01=695pt00_t001f01=695.html",
 }
 
@@ -14,7 +14,7 @@ def _get_regional_council_paths(URL, category):
 
     Args:
         URL (str): link to a page with a table with a breakdown by region and type of a council
-        category (str): category of candidates. Possible options: "candidates", "elected".
+        category (str): category of candidates. Possible options: "all", "elected".
 
     Raises:
         ValueError: invalid category provided
@@ -44,7 +44,7 @@ def _get_regional_council_paths(URL, category):
     # get headers
     col_names = [td.get_text() for td in rows[0].find_all("td")]
     # some replacements in headers
-    if category == "candidates":
+    if category == "all":
         col_names[2] = "Міські"
     elif category == "elected":
         col_names = list(map(lambda x: x.replace(" ради", ""), col_names))
@@ -60,7 +60,7 @@ def _get_regional_council_paths(URL, category):
         region = cols[0].get_text()
         # init path list for region
         path_list = []
-        start_col = 1 if category == "candidates" else 2
+        start_col = 1 if category == "all" else 2
         # iterate over columns in a row where paths can be located
         for col in cols[start_col::2]:
             # get path if it exists
@@ -79,7 +79,7 @@ def _get_council_paths(URL, category):
 
     Args:
         URL (str): link to a page with a table with councils
-        category (str): category of candidates. Possible options: "candidates", "elected".
+        category (str): category of candidates. Possible options: "all", "elected".
 
     Returns:
         dict: a dict where keys are regions and values are paths link
@@ -163,11 +163,11 @@ def _get_council_people_data(URL):
     return people_data
 
 
-def get_candidates_info(category="candidates", regions=None, types_of_councils=None):
-    """Get candidates info (for all candidates or elected) for specified regions and types of councils
+def get_candidates_info(category="all", regions=None, types_of_councils=None):
+    """Get info about all or elected candidates for specified regions and types of councils
 
     Args:
-        category (str, optional): category of candidates. Possible options: "candidates", "elected". Defaults to "candidates".
+        category (str, optional): category of candidates. Possible options: "all", "elected". Defaults to "all".
         regions (list, optional): list of regions. If provided None, all regions will be scraped. Defaults to None.
         types_of_councils (list, optional): list of types of councils. If provided None, all types of councils will be scraped.
         Defaults to None.
@@ -179,7 +179,7 @@ def get_candidates_info(category="candidates", regions=None, types_of_councils=N
         DataFrame: scraped DataFrame with candidates info
     """
     # check that the category is correct
-    if category != "candidates" and category != "elected":
+    if category != "all" and category != "elected":
         raise ValueError("Некоректна категорія")
     # get all link paths for provided category
     regional_council_paths = _get_regional_council_paths(
@@ -219,21 +219,25 @@ def get_candidates_info(category="candidates", regions=None, types_of_councils=N
                             "№ ТВО, за яким закріплено": "ТВО/ОВО",
                             "Прізвище, ім'я, по батькові": "Прізвище, ім’я, по батькові",
                             "Висування": "Партія",
+                            "% від квоти": "% голосів від квоти",
+                            "Відомості про обраного депутата": "Відомості",
+                            "Голосів ЗА": "Кількість отриманих голосів",
                         },
                         inplace=True,
                     )
                     # add column "Рада" і "Тип ради"
                     candidates.insert(0, "Рада", council)
                     candidates.insert(1, "Тип ради", type_of_council)
-                    # candidates["Рада"] = council
-                    # candidates["Тип ради"] = type_of_council
                     # append to regional DataFrame
                     candidates_region = candidates_region.append(candidates)
         # add region column
         candidates_region.insert(0, "Регіон", region)
-        # candidates_region["Регіон"] = region
         # append to full DataFrame
         candidates_full = candidates_full.append(candidates_region)
+    # change comma delimeter to decimal point
+    candidates_full["% голосів від квоти"] = candidates_full[
+        "% голосів від квоти"
+    ].str.replace(",", ".")
     # convert columns to numeric type where possible
     candidates_full = candidates_full.apply(pd.to_numeric, errors="ignore")
     return candidates_full
