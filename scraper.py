@@ -15,9 +15,15 @@ def run():
         regions=REGIONS,
         types_of_councils=TYPES_OF_COUNCILS,
     )
-    # write DataFrame to specified CSV file
+
+    # merge candidates data
+    merged_candidates_data = merge_candidates_info(
+        all_candidates_data, elected_candidates_data
+    )
+    # write DataFrames to CSV files
     all_candidates_data.to_csv(CANDIDATES_RAW_FILE_CSV_PATH, index=False)
     elected_candidates_data.to_csv(ELECTED_RAW_FILE_CSV_PATH, index=False)
+    merged_candidates_data.to_csv(MERGED_FILE_CSV_PATH, index=False)
 
 
 if __name__ == "__main__":
