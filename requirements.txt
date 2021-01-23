@@ -1,0 +1,5 @@
+pandas
+requests
+click
+bs4
+lxml
